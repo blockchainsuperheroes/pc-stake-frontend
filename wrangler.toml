@@ -1,0 +1,4 @@
+# Cloudflare Pages — static site + /stake/rpc read-proxy function, no build step.
+name = "pc-stake-frontend"
+pages_build_output_dir = "public"
+compatibility_date = "2025-01-01"
