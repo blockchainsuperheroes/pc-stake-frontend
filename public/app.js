@@ -5,6 +5,7 @@
 const CFG = window.PCSTAKE_CONFIG;
 const AGREED_KEY = 'pcstake_agreed_v1';
 const HIST_KEY = 'pcstake_history_v1';
+const GUIDE_KEY = 'pcstake_seen_guide_v1'; // first visit lands on the full program guide once
 
 const ERC20 = [
   'function balanceOf(address) view returns (uint256)',
@@ -113,7 +114,8 @@ function renderSchedule(ceilings, rates, staked) {
     const floor = idx === 0 ? 0n : ceilings[idx - 1];
     const size = ceilings[idx] - floor, used = staked - floor;
     $('trTitle').textContent = `🏆 Tranche ${names[idx]}`;
-    $('trRemain').textContent = `${fmtPC(size - used)} $PC left at these rates`;
+    // "lockable capacity", NOT reward pool — wording must not be confusable
+    $('trRemain').textContent = `you can still lock ${fmtPC(size - used)} $PC at these rates`;
     $('trBar').style.width = Math.min(100, Number(used * 10000n / size) / 100) + '%';
   } else {
     $('trTitle').textContent = '⛔ Program full';
@@ -129,6 +131,21 @@ function renderSchedule(ceilings, rates, staked) {
     c.innerHTML = `${t.label} <b>${pct.toFixed(pct % 1 ? 1 : 0)}%</b>`;
     chips.appendChild(c);
   });
+  // preview of FUTURE tranches — what rates step down to as the program fills
+  const nx = $('trNext');
+  if (nx) {
+    if (!open) { nx.textContent = 'The program has reached its final capacity.'; }
+    else {
+      const fmtRow = (ri) => CFG.terms.map((t, ti) => { const p = Number(rates[ri][ti]) / 100; return `${t.label.replace(' months', 'mo').replace(' month', 'mo')} ${p.toFixed(p % 1 ? 1 : 0)}%`; }).join(' · ');
+      const lines = [];
+      for (let ri = idx + 1; ri < rates.length; ri++) {
+        const capTxt = `after ${fmtPC(ceilings[ri - 1])} $PC locked`;
+        lines.push(`<b style="color:#8b9cc0">Next — Tranche ${names[ri].slice(0, 1)}</b> (${capTxt}): ${fmtRow(ri)}`);
+      }
+      lines.push(`Program closes at ${fmtPC(ceilings[ceilings.length - 1])} $PC locked. Locked-in rates never change.`);
+      nx.innerHTML = lines.join('<br>');
+    }
+  }
   return { open, idx, rates };
 }
 async function refreshTranche() {
@@ -497,6 +514,13 @@ async function withdrawLock(i, p) {
 
 /* ---------------- wiring ---------------- */
 window.addEventListener('DOMContentLoaded', async () => {
+  // First-ever visit: land once on the full program guide (the exciting brief),
+  // which links back here; after that, straight to terms gate / app.
+  if (localStorage.getItem(GUIDE_KEY) !== '1' && localStorage.getItem(AGREED_KEY) !== '1') {
+    try { localStorage.setItem(GUIDE_KEY, '1'); } catch {}
+    location.replace('details.html');
+    return;
+  }
   $('tosbox')?.addEventListener('scroll', checkTosScroll);
   showGate(false);
   $('agree').addEventListener('click', agree);
