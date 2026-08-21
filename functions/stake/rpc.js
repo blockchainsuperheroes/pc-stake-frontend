@@ -9,9 +9,17 @@
 //   LEDGER_ADDRESS — PCStakeLedger address on Pentagon Chain (required to enable)
 //   PC_RPC_URL     — optional dedicated RPC; defaults to the public endpoint
 
+// TEST default so the read-proxy works with no dashboard env var; override with
+// the LEDGER_ADDRESS env var for the production instance.
+const TEST_LEDGER = '0x04c1b7232f5575a3fec4b221667cce585f15f3c3';
+
 export async function onRequestPost({ request, env }) {
-  const headers = { 'content-type': 'application/json', 'cache-control': 'no-store' };
-  const LEDGER = (env.LEDGER_ADDRESS || '').toLowerCase();
+  const headers = { 'content-type': 'application/json', 'cache-control': 'no-store',
+    // Read-only, eth_call-only, single-address proxy: the data it returns is
+    // already public on-chain state, so CORS-open is safe and lets the private
+    // owner console (served locally) read ledger state too.
+    'access-control-allow-origin': '*' };
+  const LEDGER = (env.LEDGER_ADDRESS || TEST_LEDGER).toLowerCase();
   if (!/^0x[0-9a-f]{40}$/.test(LEDGER) || LEDGER === '0x0000000000000000000000000000000000000000') {
     return new Response(JSON.stringify({ error: 'ledger not configured' }), { status: 503, headers });
   }
@@ -35,4 +43,14 @@ export async function onRequestPost({ request, env }) {
   } catch {
     return new Response(JSON.stringify({ error: 'rpc unavailable' }), { status: 502, headers });
   }
+}
+
+// CORS preflight for cross-origin read-only callers (e.g. the private owner console).
+export async function onRequestOptions() {
+  return new Response(null, { status: 204, headers: {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'POST, OPTIONS',
+    'access-control-allow-headers': 'content-type',
+    'access-control-max-age': '86400',
+  }});
 }
